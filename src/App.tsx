@@ -52,6 +52,7 @@ import { MonitorDashboard } from "./components/MonitorDashboard";
 import { ClientsPage } from "./components/ClientsPage";
 import { ClientsContext, INITIAL_CLIENTS, type ClientRow } from "./data/clients";
 import { NewClientPage } from "./components/NewClientPage";
+import { CreateFlowPage, newTenantId, type CreateFlow, type CreateRun } from "./components/CreateStepper";
 import { CreateClientPage } from "./components/CreateClientPage";
 import {
   EMPTY_ADMIN,
@@ -282,7 +283,7 @@ function withSelection(items: NavItem[], section: Section, select: (s: Section) 
   });
 }
 
-function AppChrome({ children }: { children: (ctx: { onAskAi: () => void; section: Section; clientStage: NewClientStage | null; tenantForm: TenantForm; setTenantForm: (f: TenantForm) => void; profile: ClientProfile; setProfile: React.Dispatch<React.SetStateAction<ClientProfile>>; profileStep: number; admin: AdminUser; setAdmin: React.Dispatch<React.SetStateAction<AdminUser>>; dirty: boolean; saveClient: () => void; requestLeave: (leave: () => void) => void; startNewClient: () => void; goMonitor: () => void; goNewClientHome: () => void }) => React.ReactNode }) {
+function AppChrome({ children }: { children: (ctx: { onAskAi: () => void; section: Section; clientStage: NewClientStage | null; tenantForm: TenantForm; setTenantForm: (f: TenantForm) => void; profile: ClientProfile; setProfile: React.Dispatch<React.SetStateAction<ClientProfile>>; profileStep: number; admin: AdminUser; setAdmin: React.Dispatch<React.SetStateAction<AdminUser>>; dirty: boolean; saveClient: () => void; requestLeave: (leave: () => void) => void; startNewClient: () => void; goMonitor: () => void; goNewClientHome: () => void; createFlow: CreateFlow; addToast: ReturnType<typeof useToast>["addToast"]}) => React.ReactNode }) {
   const [navOpen, setNavOpen] = useState(false);
   const [section, setSection] = useState<Section>("monitor");
   // Bumped only when code (not the user) navigates, to remount LeftNav so Services opens via defaultOpen.
@@ -293,6 +294,26 @@ function AppChrome({ children }: { children: (ctx: { onAskAi: () => void; sectio
   // Client-profile fields committed so far (guided one at a time once access is prepared).
   const [profileStep, setProfileStep] = useState(0);
   const [admin, setAdmin] = useState<AdminUser>(EMPTY_ADMIN);
+  // Create on the New Client home page opens a blank Create New Client page (until the AI flow starts).
+  const [blankCreate, setBlankCreate] = useState(false);
+  const [createRun, setCreateRun] = useState<CreateRun | null>(null);
+  const createFlow: CreateFlow = {
+    blank: blankCreate,
+    run: createRun,
+    start: (name, code) => {
+      setCreateRun({ name, code, tenantId: newTenantId(), phase: "running" });
+      setBlankCreate(true);
+      setSection("new-client");
+      setNavOpen(true);
+      setNavKey((k) => k + 1);
+    },
+    finish: () => setCreateRun((r) => (r ? { ...r, phase: "done" } : r)),
+    back: () => {
+      setCreateRun(null);
+      setBlankCreate(false);
+      setSection("new-client-home");
+    },
+  };
   // Business details typed to the AI, the reasons for the tenant fields derived from them, and the manual-fields option.
   const [business, setBusiness] = useState<BusinessInfo>(EMPTY_BUSINESS);
   const [autoConfig, setAutoConfig] = useState<ConfigReason[] | null>(null);
@@ -310,6 +331,8 @@ function AppChrome({ children }: { children: (ctx: { onAskAi: () => void; sectio
     setAdmin(EMPTY_ADMIN);
     setSavedSnapshot(null);
     setSavedClientId(null);
+    setBlankCreate(false);
+    setCreateRun(null);
   };
 
   // Save / unsaved-changes tracking for the Create New Client page.
@@ -647,7 +670,7 @@ function AppChrome({ children }: { children: (ctx: { onAskAi: () => void; sectio
 
         <ContentArea ref={containerRef} className="relative min-w-0">
           <Container className="relative flex flex-1 overflow-hidden">
-            {children({ onAskAi: () => setAiPanelOpen((v) => !v), section, clientStage, tenantForm, setTenantForm, profile, setProfile, profileStep, admin, setAdmin, dirty, saveClient, requestLeave, startNewClient, goMonitor: () => setSection("monitor"), goNewClientHome: () => setSection("new-client-home") })}
+            {children({ onAskAi: () => setAiPanelOpen((v) => !v), section, clientStage, tenantForm, setTenantForm, profile, setProfile, profileStep, admin, setAdmin, dirty, saveClient, requestLeave, startNewClient, goMonitor: () => setSection("monitor"), goNewClientHome: () => setSection("new-client-home"), createFlow, addToast })}
           </Container>
 
           {/* AI panel — float (fixed position, doesn't take layout space).
@@ -711,11 +734,9 @@ function AppChrome({ children }: { children: (ctx: { onAskAi: () => void; sectio
 /* ── Page: Admin UIs – With Page Header (AdminShell "WithPageHeader" template) ── */
 
 export default function App() {
-  const [interiorPanelOpen, setInteriorPanelOpen] = useState(false);
-
   return (
     <AppChrome>
-      {({ onAskAi, section, clientStage, tenantForm, setTenantForm, profile, setProfile, profileStep, admin, setAdmin, dirty, saveClient, requestLeave, startNewClient, goMonitor, goNewClientHome }) => (
+      {({ onAskAi, section, clientStage, tenantForm, setTenantForm, profile, setProfile, profileStep, admin, setAdmin, dirty, saveClient, requestLeave, startNewClient, goMonitor, goNewClientHome, createFlow, addToast }) => (
         <AdminShell
           className="tenet-hide-left-panel"
           storageKeyPrefix="tenet_automation_admin_shell"
@@ -751,13 +772,6 @@ export default function App() {
               </Button>
             </>
           }
-          interiorPanelOpen={interiorPanelOpen}
-          onInteriorPanelClose={() => setInteriorPanelOpen(false)}
-          interiorPanelContent={
-            <div className="p-4">
-              <p className="lyra-body-md text-lyra-fg-secondary">Panel content goes here.</p>
-            </div>
-          }
           rightPanelContent={
             <div className="p-4">
               <p className="lyra-body-md text-lyra-fg-secondary">Side panel content.</p>
@@ -769,7 +783,13 @@ export default function App() {
           ) : section === "clients" ? (
             <ClientsPage />
           ) : section === "new-client-home" ? (
-            <NewClientPage />
+            <NewClientPage onCreate={createFlow.start} />
+          ) : createFlow.blank && createFlow.run && clientStage === null ? (
+            <CreateFlowPage
+              run={createFlow.run}
+              onFinish={createFlow.finish}
+              onAdminSent={(email) => addToast({ variant: "success", title: "Success!", message: `Email sent to ${email}`, duration: 4000 })}
+            />
           ) : (
             <CreateClientPage
               stage={clientStage}

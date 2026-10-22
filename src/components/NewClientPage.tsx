@@ -9,7 +9,7 @@ const BASELINE_OPTIONS = [
 ];
 
 /** "New Client" home: baseline-copy form on the left, "Creating a Client" guidance on the right. */
-export function NewClientPage() {
+export function NewClientPage({ onCreate }: { onCreate?: (name: string, code: string) => void }) {
   const [baseline, setBaseline] = useState(BASELINE_OPTIONS[0].value);
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
@@ -28,7 +28,7 @@ export function NewClientPage() {
             onChange={(e) => setCode(e.target.value)}
           />
           <Checkbox label="Copy All Services" checked={copyServices} onCheckedChange={(v) => setCopyServices(v === true)} />
-          <Button className="w-full">
+          <Button className="w-full" disabled={!name.trim() || !code.trim()} onClick={() => onCreate?.(name.trim(), code.trim())}>
             <Save className="mr-1 h-4 w-4" strokeWidth={1.5} />
             Create
           </Button>
