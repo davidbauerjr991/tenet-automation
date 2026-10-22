@@ -28,3 +28,17 @@ body {
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #c1c7cd; border-radius: 3px; }
+
+/* ── Hide AdminShell's left "Outbound" interior nav ──
+   AdminShell has no prop to omit its left SidePanel, so (per request) this app
+   hides it — plus the page header's now-pointless "Toggle left panel" button and
+   its divider — scoped to the `tenet-hide-left-panel` class set on AdminShell in
+   App.tsx. Remove that class (and this block) to bring the panel back. */
+/* the left panel is the only SidePanel AdminShell gives `z-[8]`; the right one has none */
+.tenet-hide-left-panel [role="region"].z-\[8\] {
+  display: none;
+}
+.tenet-hide-left-panel .lyra-page-header-left > div:has(button[aria-label="Toggle left panel"]),
+.tenet-hide-left-panel .lyra-page-header-left > div:has(button[aria-label="Toggle left panel"]) + div {
+  display: none;
+}
